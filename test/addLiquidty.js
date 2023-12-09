@@ -15,25 +15,35 @@ const tokenInfo = require("../tokens.json");
   
       const OpenSwap = await ethers.getContractFactory("OpenSwap");
       const openSwap = await upgrades.deployProxy(OpenSwap,[owner.address, protocalTokenAddress, 5000, 3000])
+
+      await protocalToken.updateMinter(await openSwap.getAddress(), true);
   
       return { protocalToken , openSwap, owner, otherAccount };
     }
   
-    describe("Quote", function () {
-      it("Add the new token", async function () {
+    describe("Add liquidity", function () {
+      it("Add liquidty to specific token", async function () {
         const { protocalToken, openSwap, owner, otherAccount } = await loadFixture(deployOpenProtocalFixture);
 
         await openSwap.addToken(tokenInfo.WETH.address,tokenInfo.WETH.priceFeed);
         await openSwap.addToken(tokenInfo.LINK.address,tokenInfo.LINK.priceFeed);
 
-        const amountOut = await openSwap.quote(tokenInfo.WETH.address, tokenInfo.LINK.address, ethers.parseEther('1.5'))
-        console.log("amount out ",amountOut, Number(amountOut[0]) / 10**18)
+        const impersonatedSigner = await ethers.getImpersonatedSigner("0x4281eCF07378Ee595C564a59048801330f3084eE");
 
-        const amountOut2 = await openSwap.quote(tokenInfo.LINK.address, tokenInfo.WETH.address, ethers.parseEther('1'))
-        console.log("amount out ",amountOut2, Number(amountOut2[0]) / 10**18)
+        const LINKtoken = await ethers.getContractAt('IToken','0x779877A7B0D9E8603169DdbD7836e478b4624789');
 
-        const amountOut3 = await openSwap.quote(await protocalToken.getAddress(), tokenInfo.LINK.address, ethers.parseEther('50'));
-        console.log("amount out ",amountOut3, Number(amountOut3[0]) / 10**18)
+        const balanceOfImpersonte = await LINKtoken.balanceOf('0x4281eCF07378Ee595C564a59048801330f3084eE');
+        console.log("balance ",balanceOfImpersonte);
+
+        await LINKtoken.connect(impersonatedSigner).approve(await openSwap.getAddress(), ethers.parseEther("50"));
+
+        const addLiquidity = await openSwap.connect(impersonatedSigner).addLiquidity(await LINKtoken.getAddress(), ethers.parseEther("50"));
+
+        const balanceOfUserInProtocalTokens = await protocalToken.balanceOf(impersonatedSigner.address);
+        console.log("blance of user in protocal balance ", balanceOfUserInProtocalTokens);
+
+        const poolInfo = await openSwap.tokenInfo(await LINKtoken.getAddress());
+        console.log("token info ", poolInfo)
       });
     });
   });

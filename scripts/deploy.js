@@ -1,28 +1,26 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
-// will compile your contracts, add the Hardhat Runtime Environment's members to the
-// global scope, and execute the script.
-const hre = require("hardhat");
+const { ethers, upgrades } = require("hardhat");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
+  const protocalFee = 5000;
+  const rewardPerBlock = 3000;
+  const [signer] = await ethers.getSigners();
+  console.log("singer ", signer.address);
 
-  const lockedAmount = hre.ethers.parseEther("0.001");
+  const protocalToken = await ethers.getContractFactory("OpenSwapToken");
+  const ProtocalToken = await protocalToken.deploy(signer.address);
 
-  const lock = await hre.ethers.deployContract("Lock", [unlockTime], {
-    value: lockedAmount,
-  });
+  ProtocalToken.waitForDeployment();
 
-  await lock.waitForDeployment();
+  console.log(`Protocal token deployed at ${await ProtocalToken.getAddress()}`);
 
-  console.log(
-    `Lock with ${ethers.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.target}`
-  );
+  const openSwap = await ethers.getContractFactory("OpenSwap");
+  const OpenSwap = await upgrades.deployProxy(openSwap,[signer.address, await ProtocalToken.getAddress(), protocalFee, rewardPerBlock])
+
+  await OpenSwap.waitForDeployment();
+
+  console.log(`OpenSwap deployed at ${await OpenSwap.getAddress()}`);
+
+  await ProtocalToken.updateMinter(await OpenSwap.getAddress(), true);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
